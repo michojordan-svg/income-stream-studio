@@ -4,6 +4,7 @@ import { ArrowUpRight, ArrowDownRight, Plus, TrendingUp, MousePointerClick, Targ
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Sparkline } from "@/components/dashboard/Sparkline";
 import { useDashboard, useAnalyticsSummary } from "@/hooks/useApi";
+import { auth } from "@/lib/auth";
 // Static fallbacks keep the UI non-empty while data loads
 import { niches as staticNiches, recentActivity, revenueSeries as staticSeries, topPerformers } from "@/lib/dashboard-data";
 
@@ -83,7 +84,7 @@ function Dashboard() {
       }))
     : staticNiches;
 
-  const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("ia_user") || "{}") : {};
+  const user = auth.getUser();
   const name = user?.username ?? "there";
 
   return (
@@ -175,7 +176,7 @@ function Dashboard() {
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Performance by niche</p>
           {displayNiches.map((n, i) => (
             <div
-              key={n.id ?? n.name}
+              key={n.name}
               style={{ animationDelay: `${i * 80}ms`, borderLeftColor: n.color, backgroundColor: n.soft }}
               className="animate-fade-up hover-lift grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border border-l-[3px] p-4"
             >

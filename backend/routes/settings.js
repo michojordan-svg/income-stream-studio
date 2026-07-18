@@ -7,15 +7,25 @@ const { ok, fail } = require('../utils/apiResponses');
 const router = express.Router();
 router.use(verifyAuth);
 
+// Env-var names the frontend cares about
+const KNOWN_SERVICE_KEYS = [
+  'OPENAI_API_KEY',
+  'PINTEREST_ACCESS_TOKEN',
+  'YOUTUBE_API_KEY',
+  'BUFFER_ACCESS_TOKEN',
+  'GUMROAD_ACCESS_TOKEN',
+  'BITLY_ACCESS_TOKEN',
+];
+
 // GET /api/settings
 router.get('/', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT preferences, api_keys FROM users WHERE id=$1', [req.userId]);
+      'SELECT preferences FROM users WHERE id=$1', [req.userId]);
     if (!rows.length) return fail(res, 'User not found', 404);
-    // Never return actual api_key values — return key names only
-    const keyNames = Object.keys(rows[0].api_keys || {});
-    return ok(res, { preferences: rows[0].preferences, connected_services: keyNames });
+    // Return which known env-var keys are actually present in the environment
+    const connected_services = KNOWN_SERVICE_KEYS.filter(k => !!process.env[k]);
+    return ok(res, { preferences: rows[0].preferences, connected_services });
   } catch (err) {
     return fail(res, 'Failed to get settings', 500);
   }

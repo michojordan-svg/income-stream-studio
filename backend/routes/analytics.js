@@ -28,7 +28,7 @@ router.get('/dashboard', async (req, res) => {
                 COUNT(*) FILTER (WHERE ae.event_type='conversion') as conversions
          FROM analytics_events ae
          LEFT JOIN content_library cl ON ae.content_id=cl.id
-         WHERE ae.user_id=$1 AND ae.created_at>=$2
+         WHERE ae.user_id=$1 AND ae.created_at>=$2 AND cl.niche IS NOT NULL
          GROUP BY cl.niche ORDER BY revenue DESC`,
         [req.userId, startDate]
       ),

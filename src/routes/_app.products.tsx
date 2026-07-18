@@ -96,7 +96,7 @@ function ProductsPage() {
                 {p.type}
               </span>
               <span className="absolute right-3 top-3 rounded-full bg-navy/90 px-2.5 py-1 font-display text-[13px] font-semibold text-primary-foreground">
-                ${p.price}
+                ${p.price.toFixed(2)}
               </span>
             </div>
 
@@ -107,7 +107,7 @@ function ProductsPage() {
               <div className="mt-4 grid grid-cols-[1fr_auto] items-end gap-3 border-t border-border-soft pt-4">
                 <div className="grid grid-cols-3 gap-2">
                   <Stat label="Sales"   value={String(p.sales)} />
-                  <Stat label="Revenue" value={`$${p.revenue}`} />
+                  <Stat label="Revenue" value={`${p.revenue.toFixed(2)}`} />
                   <Stat label="Margin"  value={`${p.margin}%`} />
                 </div>
                 <div className="w-16">

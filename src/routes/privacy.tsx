@@ -12,7 +12,7 @@ export const Route = createFileRoute("/privacy")({
 });
 
 const LAST_UPDATED = "July 18, 2026";
-const CONTACT_EMAIL = "privacy@incomeautopilot.com";
+const CONTACT_EMAIL = "michojordan8@gmail.com";
 
 function PrivacyPolicy() {
   return (

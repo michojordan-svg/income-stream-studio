@@ -1,0 +1,2 @@
+- [Backend setup](backend-setup.md) — Express backend at port 3001; packages in backend/node_modules via `npm install` inside backend/; workflow uses no waitForPort (port detection fails on Replit for 3001).
+- [Frontend API wiring](frontend-api-wiring.md) — All routes wired to real backend; static data in dashboard-data.ts kept as graceful fallback; JWT stored in localStorage via src/lib/auth.ts.

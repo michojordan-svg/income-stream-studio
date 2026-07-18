@@ -1,45 +1,54 @@
-import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
-  LayoutDashboard,
-  FolderKanban,
-  BarChart3,
-  Link2,
-  Package,
-  Settings,
-  Bell,
-  Search,
-  Menu,
-  X,
-  ChevronDown,
+  LayoutDashboard, FolderKanban, BarChart3, Link2, Package,
+  Settings, Bell, Search, Menu, X, ChevronDown,
 } from "lucide-react";
+import { auth } from "@/lib/auth";
+import { authApi } from "@/lib/api";
 
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
 });
 
 const nav = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/content", label: "Content", icon: FolderKanban },
-  { to: "/analytics", label: "Analytics", icon: BarChart3 },
-  { to: "/links", label: "Affiliate links", icon: Link2 },
-  { to: "/products", label: "Products", icon: Package },
-  { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/dashboard", label: "Dashboard",      icon: LayoutDashboard },
+  { to: "/content",   label: "Content",         icon: FolderKanban },
+  { to: "/analytics", label: "Analytics",       icon: BarChart3 },
+  { to: "/links",     label: "Affiliate links", icon: Link2 },
+  { to: "/products",  label: "Products",        icon: Package },
+  { to: "/settings",  label: "Settings",        icon: Settings },
 ] as const;
 
 function AppLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
+  // Auth guard — redirect to login if no token
   useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+    if (!auth.isAuthenticated()) navigate({ to: "/" });
+  }, [navigate]);
+
+  useEffect(() => { setOpen(false); }, [pathname]);
+
+  const handleLogout = async () => {
+    try { await authApi.logout(); } catch { /* ignore */ }
+    auth.removeToken();
+    navigate({ to: "/" });
+  };
+
+  const user = auth.getUser();
+  const initials = user?.username
+    ? user.username.slice(0, 2).toUpperCase()
+    : user?.email?.slice(0, 2).toUpperCase() ?? "IA";
+  const displayName = user?.username ?? user?.email?.split("@")[0] ?? "You";
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Sidebar — desktop */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[260px] flex-col bg-navy px-4 py-6 lg:flex">
-        <SidebarInner pathname={pathname} />
+        <SidebarInner pathname={pathname} onLogout={handleLogout} />
       </aside>
 
       {/* Sidebar — mobile drawer */}
@@ -54,7 +63,7 @@ function AppLayout() {
             >
               <X className="h-4 w-4" />
             </button>
-            <SidebarInner pathname={pathname} />
+            <SidebarInner pathname={pathname} onLogout={handleLogout} />
           </aside>
         </div>
       )}
@@ -90,14 +99,18 @@ function AppLayout() {
               <Bell className="h-4 w-4" />
               <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-success" />
             </button>
-            <button className="flex h-10 items-center gap-2 rounded-md border border-border bg-card pl-1 pr-3 transition hover:bg-cream-soft">
+            <button
+              onClick={handleLogout}
+              className="flex h-10 items-center gap-2 rounded-md border border-border bg-card pl-1 pr-3 transition hover:bg-cream-soft"
+              title="Sign out"
+            >
               <span
                 aria-hidden
                 className="grid h-8 w-8 place-items-center rounded-md bg-navy font-mono text-xs font-semibold text-primary-foreground"
               >
-                AK
+                {initials}
               </span>
-              <span className="hidden text-sm font-medium text-navy sm:inline">Alex</span>
+              <span className="hidden text-sm font-medium text-navy sm:inline">{displayName}</span>
               <ChevronDown className="hidden h-3.5 w-3.5 text-muted-foreground sm:inline" />
             </button>
           </div>
@@ -111,7 +124,7 @@ function AppLayout() {
   );
 }
 
-function SidebarInner({ pathname }: { pathname: string }) {
+function SidebarInner({ pathname, onLogout }: { pathname: string; onLogout: () => void }) {
   return (
     <>
       <Link to="/dashboard" className="mb-8 flex items-center gap-2.5 px-2">
@@ -147,15 +160,17 @@ function SidebarInner({ pathname }: { pathname: string }) {
 
       <div className="mt-6 rounded-lg border border-primary-foreground/10 bg-primary-foreground/[0.04] p-4">
         <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary-foreground/50">This month</p>
-        <p className="mt-2 font-display text-2xl font-semibold text-primary-foreground">$2,850.75</p>
+        <p className="mt-2 font-display text-2xl font-semibold text-primary-foreground">Income Autopilot</p>
         <div className="mt-2 flex items-center gap-1.5 text-[11px] text-success">
           <span className="inline-block h-1 w-1 rounded-full bg-success" />
-          <span className="font-medium">+14.2% vs last month</span>
+          <span className="font-medium">Automation running</span>
         </div>
-        <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-primary-foreground/10">
-          <div className="h-full w-[72%] rounded-full bg-gradient-to-r from-primary to-primary-hover" />
-        </div>
-        <p className="mt-2 font-mono text-[10px] text-primary-foreground/40">Goal $4,000 · 72%</p>
+        <button
+          onClick={onLogout}
+          className="mt-3 w-full rounded-md bg-primary-foreground/10 py-1.5 font-mono text-[10px] text-primary-foreground/60 transition hover:bg-primary-foreground/15"
+        >
+          Sign out
+        </button>
       </div>
     </>
   );

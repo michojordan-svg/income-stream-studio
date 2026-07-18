@@ -2,16 +2,46 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Plus, ArrowUpRight } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Sparkline } from "@/components/dashboard/Sparkline";
-import { products } from "@/lib/dashboard-data";
+import { useProducts } from "@/hooks/useApi";
+import { products as staticProducts } from "@/lib/dashboard-data";
+import type { Product } from "@/lib/api";
 
 export const Route = createFileRoute("/_app/products")({
   component: ProductsPage,
   head: () => ({ meta: [{ title: "Digital products — Income Autopilot" }] }),
 });
 
+const ACCENTS = [
+  { accent: "#2c5aa0", soft: "#e8f0f9" },
+  { accent: "#f59e0b", soft: "#fef7e6" },
+  { accent: "#10b981", soft: "#ecfdf5" },
+  { accent: "#2c5aa0", soft: "#e8f0f9" },
+];
+
+function toDisplay(p: Product, i: number) {
+  const { accent, soft } = ACCENTS[i % ACCENTS.length];
+  return {
+    id:          p.id,
+    name:        p.name,
+    type:        p.product_type ?? "Product",
+    description: p.description ?? "",
+    price:       typeof p.price === "string" ? parseFloat(p.price) : p.price,
+    sales:       p.sales_count,
+    revenue:     typeof p.revenue === "string" ? parseFloat(p.revenue) : p.revenue,
+    margin:      95, // not in DB yet — sensible placeholder
+    accent,
+    soft,
+  };
+}
+
 function ProductsPage() {
+  const { data, isLoading } = useProducts({ limit: 50 });
+
+  const raw = data?.data ?? [];
+  const products = raw.length ? raw.map(toDisplay) : staticProducts;
+
   const totalRevenue = products.reduce((s, p) => s + p.revenue, 0);
-  const totalSales = products.reduce((s, p) => s + p.sales, 0);
+  const totalSales   = products.reduce((s, p) => s + p.sales, 0);
 
   return (
     <div className="animate-fade-up">
@@ -28,10 +58,10 @@ function ProductsPage() {
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { l: "Products", v: products.length },
+          { l: "Products",    v: products.length },
           { l: "Total sales", v: totalSales },
-          { l: "Revenue", v: `$${totalRevenue.toLocaleString()}` },
-          { l: "Avg. price", v: `$${(totalRevenue / totalSales).toFixed(2)}` },
+          { l: "Revenue",     v: `$${totalRevenue.toLocaleString()}` },
+          { l: "Avg. price",  v: totalSales ? `$${(totalRevenue / totalSales).toFixed(2)}` : "—" },
         ].map((k) => (
           <div key={k.l} className="rounded-xl border border-border bg-card p-4">
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{k.l}</p>
@@ -39,6 +69,14 @@ function ProductsPage() {
           </div>
         ))}
       </div>
+
+      {isLoading && !raw.length && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-72 animate-pulse rounded-xl border border-border bg-card" />
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {products.map((p, i) => (
@@ -50,17 +88,11 @@ function ProductsPage() {
             <div className="relative aspect-[16/9] w-full overflow-hidden" style={{ background: p.soft }}>
               <div className="absolute inset-0 grid-lines opacity-30" />
               <div className="absolute inset-0 flex items-center justify-center">
-                <span
-                  className="rounded-lg px-4 py-2 font-display text-2xl font-semibold"
-                  style={{ color: p.accent, background: "rgba(255,255,255,0.6)", backdropFilter: "blur(6px)" }}
-                >
+                <span className="rounded-lg px-4 py-2 font-display text-2xl font-semibold" style={{ color: p.accent, background: "rgba(255,255,255,0.6)", backdropFilter: "blur(6px)" }}>
                   {p.name.split(" ").slice(0, 2).join(" ")}
                 </span>
               </div>
-              <span
-                className="absolute left-3 top-3 rounded-full bg-card/90 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider backdrop-blur"
-                style={{ color: p.accent }}
-              >
+              <span className="absolute left-3 top-3 rounded-full bg-card/90 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider backdrop-blur" style={{ color: p.accent }}>
                 {p.type}
               </span>
               <span className="absolute right-3 top-3 rounded-full bg-navy/90 px-2.5 py-1 font-display text-[13px] font-semibold text-primary-foreground">
@@ -74,9 +106,9 @@ function ProductsPage() {
 
               <div className="mt-4 grid grid-cols-[1fr_auto] items-end gap-3 border-t border-border-soft pt-4">
                 <div className="grid grid-cols-3 gap-2">
-                  <Stat label="Sales" value={String(p.sales)} />
+                  <Stat label="Sales"   value={String(p.sales)} />
                   <Stat label="Revenue" value={`$${p.revenue}`} />
-                  <Stat label="Margin" value={`${p.margin}%`} />
+                  <Stat label="Margin"  value={`${p.margin}%`} />
                 </div>
                 <div className="w-16">
                   <Sparkline data={[4, 6, 8, 7, 10, 12, 14, 18, 22, 24, 28, 32]} color={p.accent} />

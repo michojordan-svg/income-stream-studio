@@ -1,6 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowRight, TrendingUp, Zap, ShieldCheck } from "lucide-react";
+import { authApi } from "@/lib/api";
+import { auth } from "@/lib/auth";
 
 export const Route = createFileRoute("/")({
   component: Login,
@@ -14,14 +16,25 @@ export const Route = createFileRoute("/")({
 
 function Login() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("hello@autopilot.io");
-  const [password, setPassword] = useState("••••••••");
-  const [loading, setLoading] = useState(false);
+  const [email, setEmail]       = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState<string | null>(null);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => navigate({ to: "/dashboard" }), 600);
+    setError(null);
+    try {
+      const { user, token } = await authApi.login(email, password);
+      auth.setToken(token);
+      auth.setUser(user);
+      navigate({ to: "/dashboard" });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Sign in failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -55,9 +68,9 @@ function Login() {
 
             <dl className="mt-10 grid grid-cols-3 gap-6 border-t border-primary-foreground/10 pt-8">
               {[
-                { k: "$2,850", v: "Tracked this month" },
-                { k: "3", v: "Active niches" },
-                { k: "156", v: "Content pieces" },
+                { k: "Real-time", v: "Revenue tracking" },
+                { k: "3 niches", v: "Fully automated" },
+                { k: "100%", v: "Yours to keep" },
               ].map((s) => (
                 <div key={s.v}>
                   <dt className="font-display text-2xl font-semibold text-primary-foreground">{s.k}</dt>
@@ -85,22 +98,21 @@ function Login() {
             <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Welcome back</p>
             <h2 className="mt-2 text-3xl font-semibold text-navy">Sign in to your dashboard</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Or{" "}
+              Don't have an account?{" "}
               <Link to="/" className="font-medium text-primary underline-offset-4 hover:underline">
-                start a 14-day trial
+                Sign up free
               </Link>{" "}
               — no card required.
             </p>
 
+            {error && (
+              <div className="mt-4 rounded-md border border-error/30 bg-error/5 px-4 py-3 text-sm text-error">
+                {error}
+              </div>
+            )}
+
             <form onSubmit={submit} className="mt-8 space-y-5">
-              <Field
-                label="Email"
-                type="email"
-                value={email}
-                onChange={setEmail}
-                autoComplete="email"
-                required
-              />
+              <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" required />
               <Field
                 label="Password"
                 type="password"
@@ -154,21 +166,11 @@ function Login() {
 }
 
 function Field({
-  label,
-  type,
-  value,
-  onChange,
-  autoComplete,
-  required,
-  trailing,
+  label, type, value, onChange, autoComplete, required, trailing,
 }: {
-  label: string;
-  type: string;
-  value: string;
-  onChange: (v: string) => void;
-  autoComplete?: string;
-  required?: boolean;
-  trailing?: React.ReactNode;
+  label: string; type: string; value: string;
+  onChange: (v: string) => void; autoComplete?: string;
+  required?: boolean; trailing?: React.ReactNode;
 }) {
   return (
     <div>
@@ -177,11 +179,8 @@ function Field({
         {trailing}
       </div>
       <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        autoComplete={autoComplete}
-        required={required}
+        type={type} value={value} onChange={(e) => onChange(e.target.value)}
+        autoComplete={autoComplete} required={required}
         className="h-11 w-full rounded-md border border-border bg-cream-soft px-3.5 text-[15px] text-foreground placeholder:text-muted-foreground/60 transition-all duration-200 focus:border-primary focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary-soft"
       />
     </div>

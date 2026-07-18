@@ -2,31 +2,54 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Plus, Search, SlidersHorizontal, MoreHorizontal } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { contentLibrary } from "@/lib/dashboard-data";
+import { useContent } from "@/hooks/useApi";
+import { contentLibrary as staticLibrary } from "@/lib/dashboard-data";
+import type { ContentItem } from "@/lib/api";
 
 export const Route = createFileRoute("/_app/content")({
   component: ContentPage,
   head: () => ({ meta: [{ title: "Content library — Income Autopilot" }] }),
 });
 
-const niches = ["All", "Health", "Luxury", "AI"];
+const NICHES = ["All", "Health", "Luxury", "AI"];
+
+// Map API ContentItem to the shape the UI expects
+function toDisplay(c: ContentItem, idx: number) {
+  const hues = [200, 30, 220, 160, 20, 240, 40, 210];
+  return {
+    id:          c.id,
+    title:       c.title,
+    niche:       c.niche,
+    platform:    c.content_type === "youtube_short" ? "YouTube" : "Pinterest",
+    status:      c.status.charAt(0).toUpperCase() + c.status.slice(1),
+    date:        new Date(c.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    views:       c.performance_metrics?.views ?? 0,
+    clicks:      c.performance_metrics?.clicks ?? 0,
+    conversions: c.performance_metrics?.conversions ?? 0,
+    hue:         hues[idx % hues.length],
+  };
+}
 
 function ContentPage() {
   const [niche, setNiche] = useState("All");
   const [q, setQ] = useState("");
+  const { data, isLoading } = useContent({ limit: 50 });
+
+  const raw = data?.data ?? [];
+  const library = raw.length ? raw.map(toDisplay) : staticLibrary;
 
   const items = useMemo(
-    () =>
-      contentLibrary.filter(
-        (c) => (niche === "All" || c.niche === niche) && (!q || c.title.toLowerCase().includes(q.toLowerCase())),
-      ),
-    [niche, q],
+    () => library.filter(
+      (c) => (niche === "All" || c.niche.toLowerCase().includes(niche.toLowerCase())) &&
+             (!q || c.title.toLowerCase().includes(q.toLowerCase())),
+    ),
+    [library, niche, q],
   );
 
   return (
     <div className="animate-fade-up">
       <PageHeader
-        eyebrow={`${contentLibrary.length} pieces · 3 niches`}
+        eyebrow={`${library.length} pieces · 3 niches`}
         title="Content library"
         description="Every pin, video and post you've queued for automation, in one place."
         actions={
@@ -38,14 +61,11 @@ function ContentPage() {
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <div className="flex gap-1 rounded-md border border-border bg-cream-soft p-1">
-          {niches.map((n) => (
+          {NICHES.map((n) => (
             <button
               key={n}
               onClick={() => setNiche(n)}
-              className={
-                "rounded px-3 py-1.5 text-xs font-medium transition " +
-                (niche === n ? "bg-card text-navy shadow-subtle" : "text-muted-foreground hover:text-navy")
-              }
+              className={"rounded px-3 py-1.5 text-xs font-medium transition " + (niche === n ? "bg-card text-navy shadow-subtle" : "text-muted-foreground hover:text-navy")}
             >
               {n}
             </button>
@@ -54,9 +74,7 @@ function ContentPage() {
         <div className="relative flex-1 min-w-[200px]">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search titles…"
+            value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search titles…"
             className="h-10 w-full rounded-md border border-border bg-cream-soft pl-9 pr-3 text-sm placeholder:text-muted-foreground/70 focus:border-primary focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary-soft"
           />
         </div>
@@ -64,6 +82,14 @@ function ContentPage() {
           <SlidersHorizontal className="h-4 w-4" /> Filters
         </button>
       </div>
+
+      {isLoading && !raw.length && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-64 animate-pulse rounded-xl border border-border bg-card" />
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {items.map((c, i) => (
@@ -74,24 +100,13 @@ function ContentPage() {
           >
             <div
               className="relative aspect-[16/10] w-full overflow-hidden"
-              style={{
-                background: `linear-gradient(135deg, hsl(${c.hue} 42% 78%), hsl(${c.hue} 48% 62%))`,
-              }}
+              style={{ background: `linear-gradient(135deg, hsl(${c.hue} 42% 78%), hsl(${c.hue} 48% 62%))` }}
             >
               <div className="absolute inset-0 grid-lines opacity-20" />
               <span className="absolute left-3 top-3 rounded-full bg-card/90 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-navy backdrop-blur">
                 {c.platform}
               </span>
-              <span
-                className={
-                  "absolute right-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-semibold " +
-                  (c.status === "Published"
-                    ? "bg-success/15 text-success"
-                    : c.status === "Scheduled"
-                    ? "bg-primary-soft text-primary"
-                    : "bg-cream-warm text-muted-foreground")
-                }
-              >
+              <span className={"absolute right-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-semibold " + (c.status === "Published" ? "bg-success/15 text-success" : c.status === "Scheduled" ? "bg-primary-soft text-primary" : "bg-cream-warm text-muted-foreground")}>
                 {c.status}
               </span>
             </div>
@@ -99,9 +114,9 @@ function ContentPage() {
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{c.niche} · {c.date}</p>
               <h3 className="mt-1.5 line-clamp-2 text-[15px] font-semibold text-navy">{c.title}</h3>
               <div className="mt-4 grid grid-cols-3 gap-2 border-t border-border-soft pt-3 text-center">
-                <Stat label="Views" value={c.views ? c.views.toLocaleString() : "—"} />
-                <Stat label="Clicks" value={c.clicks ? c.clicks.toLocaleString() : "—"} />
-                <Stat label="Conv." value={c.conversions ? String(c.conversions) : "—"} />
+                <Stat label="Views"  value={c.views   ? c.views.toLocaleString()   : "—"} />
+                <Stat label="Clicks" value={c.clicks  ? c.clicks.toLocaleString()  : "—"} />
+                <Stat label="Conv."  value={c.conversions ? String(c.conversions)   : "—"} />
               </div>
               <div className="mt-3 flex items-center justify-between opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                 <button className="text-xs font-medium text-primary hover:text-primary-hover">View stats →</button>
@@ -114,7 +129,7 @@ function ContentPage() {
         ))}
       </div>
 
-      {items.length === 0 && (
+      {items.length === 0 && !isLoading && (
         <div className="mt-10 rounded-xl border border-dashed border-border bg-cream-soft/60 py-16 text-center">
           <p className="text-sm font-medium text-navy">No content matches this filter.</p>
           <p className="mt-1 text-xs text-muted-foreground">Try clearing the search or picking a different niche.</p>

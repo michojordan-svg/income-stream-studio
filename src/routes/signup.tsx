@@ -4,34 +4,40 @@ import { ArrowRight, TrendingUp, Zap, ShieldCheck } from "lucide-react";
 import { authApi } from "@/lib/api";
 import { auth } from "@/lib/auth";
 
-export const Route = createFileRoute("/")({
-  component: Login,
+export const Route = createFileRoute("/signup")({
+  component: Signup,
   head: () => ({
     meta: [
-      { title: "Sign in — Income Autopilot" },
-      { name: "description", content: "Sign in to your Income Autopilot dashboard." },
+      { title: "Create account — Income Autopilot" },
+      { name: "description", content: "Create your free Income Autopilot account." },
     ],
   }),
 });
 
-function Login() {
+function Signup() {
   const navigate = useNavigate();
+  const [username, setUsername] = useState("");
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm]   = useState("");
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password !== confirm) {
+      setError("Passwords do not match.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const { user, token } = await authApi.login(email, password);
+      const { user, token } = await authApi.signup(email, password, username || undefined);
       auth.setToken(token);
       auth.setUser(user);
       navigate({ to: "/dashboard" });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Sign in failed. Please try again.");
+      setError(err instanceof Error ? err.message : "Sign up failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -56,19 +62,18 @@ function Login() {
 
           <div className="relative max-w-md text-primary-foreground">
             <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-primary-foreground/60">
-              Dashboard · 2026
+              Get started · Free
             </p>
             <h1 className="mt-4 text-4xl font-semibold leading-tight text-primary-foreground xl:text-5xl">
-              Automated income,<br />measured with the care of a bank ledger.
+              Your income,<br />on autopilot from day one.
             </h1>
             <p className="mt-5 max-w-sm text-sm leading-relaxed text-primary-foreground/70">
-              Track earnings across Pinterest affiliates, YouTube monetisation and your own digital products — from a
-              single, quiet dashboard.
+              Connect your Pinterest affiliates, YouTube channel and digital products in minutes. No card required.
             </p>
 
             <dl className="mt-10 grid grid-cols-3 gap-6 border-t border-primary-foreground/10 pt-8">
               {[
-                { k: "Real-time", v: "Revenue tracking" },
+                { k: "Free", v: "No card required" },
                 { k: "3 niches", v: "Fully automated" },
                 { k: "100%", v: "Yours to keep" },
               ].map((s) => (
@@ -95,14 +100,13 @@ function Login() {
               <span className="text-sm font-semibold text-navy">Income Autopilot</span>
             </div>
 
-            <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Welcome back</p>
-            <h2 className="mt-2 text-3xl font-semibold text-navy">Sign in to your dashboard</h2>
+            <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Free account</p>
+            <h2 className="mt-2 text-3xl font-semibold text-navy">Create your account</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Don't have an account?{" "}
-              <Link to="/signup" className="font-medium text-primary underline-offset-4 hover:underline">
-                Sign up free
-              </Link>{" "}
-              — no card required.
+              Already have an account?{" "}
+              <Link to="/" className="font-medium text-primary underline-offset-4 hover:underline">
+                Sign in
+              </Link>
             </p>
 
             {error && (
@@ -112,36 +116,45 @@ function Login() {
             )}
 
             <form onSubmit={submit} className="mt-8 space-y-5">
-              <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" required />
+              <Field
+                label="Username"
+                type="text"
+                value={username}
+                onChange={setUsername}
+                autoComplete="username"
+                placeholder="Optional"
+              />
+              <Field
+                label="Email"
+                type="email"
+                value={email}
+                onChange={setEmail}
+                autoComplete="email"
+                required
+              />
               <Field
                 label="Password"
                 type="password"
                 value={password}
                 onChange={setPassword}
-                autoComplete="current-password"
+                autoComplete="new-password"
                 required
-                trailing={
-                  <a href="#" className="text-xs font-medium text-primary hover:text-primary-hover">
-                    Forgot?
-                  </a>
-                }
               />
-
-              <label className="flex select-none items-center gap-2 text-sm text-muted-foreground">
-                <input
-                  type="checkbox"
-                  defaultChecked
-                  className="h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-primary-soft"
-                />
-                Keep me signed in on this device
-              </label>
+              <Field
+                label="Confirm password"
+                type="password"
+                value={confirm}
+                onChange={setConfirm}
+                autoComplete="new-password"
+                required
+              />
 
               <button
                 type="submit"
                 disabled={loading}
                 className="group relative flex h-12 w-full items-center justify-center gap-2 rounded-md bg-primary text-sm font-semibold text-primary-foreground shadow-[0_1px_3px_rgba(15,23,42,0.1)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-primary-hover hover:shadow-[0_4px_12px_rgba(44,90,160,0.25)] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-70"
               >
-                {loading ? "Signing in…" : "Sign in"}
+                {loading ? "Creating account…" : "Create free account"}
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </button>
             </form>
@@ -166,11 +179,11 @@ function Login() {
 }
 
 function Field({
-  label, type, value, onChange, autoComplete, required, trailing,
+  label, type, value, onChange, autoComplete, required, placeholder, trailing,
 }: {
   label: string; type: string; value: string;
   onChange: (v: string) => void; autoComplete?: string;
-  required?: boolean; trailing?: React.ReactNode;
+  required?: boolean; placeholder?: string; trailing?: React.ReactNode;
 }) {
   return (
     <div>
@@ -180,7 +193,7 @@ function Field({
       </div>
       <input
         type={type} value={value} onChange={(e) => onChange(e.target.value)}
-        autoComplete={autoComplete} required={required}
+        autoComplete={autoComplete} required={required} placeholder={placeholder}
         className="h-11 w-full rounded-md border border-border bg-cream-soft px-3.5 text-[15px] text-foreground placeholder:text-muted-foreground/60 transition-all duration-200 focus:border-primary focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary-soft"
       />
     </div>

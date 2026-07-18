@@ -1,0 +1,1393 @@
+# 🚀 REPLIT AI AGENT SUPER PROMPT
+## Build Complete Backend for Income Autopilot Dashboard
+
+---
+
+# CRITICAL CONTEXT
+
+**Your Mission:** Build a production-ready Node.js backend that powers an automated income tracking dashboard. This backend will serve a React frontend (built in Lovable) and integrate with 8 external APIs.
+
+**Your Challenge:** Everything must work together seamlessly. No half-built features. No shortcuts. This is the ONE BUILD that matters.
+
+**Your Success Metrics:**
+- ✅ Server starts and runs 24/7 on Replit
+- ✅ All 30+ API endpoints work and respond correctly
+- ✅ Database connects and stores data persistently
+- ✅ Authentication works (JWT tokens)
+- ✅ External APIs integrated (Pinterest, YouTube, OpenAI, Buffer, etc.)
+- ✅ Cron jobs run automatically (content posting, metric tracking)
+- ✅ Error handling comprehensive (no crashes)
+- ✅ Frontend can call backend and get real data
+- ✅ Deployment ready (no console errors)
+
+**What We're NOT Doing:**
+- ❌ Mock data or fake endpoints
+- ❌ Incomplete features
+- ❌ Insecure authentication
+- ❌ Hard-coded secrets
+- ❌ Poor error handling
+- ❌ Missing validation
+
+---
+
+# PART 1: PROJECT OVERVIEW
+
+## 1.1 What You're Building
+
+**Application Name:** Income Autopilot  
+**Type:** Backend API server + Automation engine  
+**Frontend:** React dashboard (built separately in Lovable)  
+**Database:** PostgreSQL  
+**Hosting:** Replit  
+**Purpose:** Track and automate multiple income streams (affiliate marketing, YouTube, digital products)
+
+## 1.2 Tech Stack (Required - Don't Deviate)
+
+```
+Runtime: Node.js 18+
+Framework: Express.js 4.x
+Database: PostgreSQL 14+
+ORM: node-postgres (pg) or Prisma (if you prefer)
+Authentication: JWT (jsonwebtoken)
+Scheduling: node-cron or later
+API Clients: axios for HTTP requests
+Validation: joi or zod
+Environment: dotenv for secrets
+```
+
+## 1.3 Project Structure
+
+```
+replit-project/
+├── server.js (main entry point)
+├── .env (environment variables - NOT in git)
+├── .env.example (template for .env)
+├── .gitignore
+├── package.json
+│
+├── config/
+│   ├── database.js (PostgreSQL connection)
+│   ├── constants.js (static values)
+│   └── logger.js (logging utility)
+│
+├── routes/
+│   ├── auth.js (POST /auth/login, /auth/signup, /auth/logout)
+│   ├── content.js (POST/GET /api/content/*)
+│   ├── analytics.js (GET /api/analytics/*)
+│   ├── affiliate.js (POST/GET /api/affiliate/*)
+│   ├── products.js (POST/GET /api/products/*)
+│   ├── platforms.js (POST /api/platforms/*)
+│   └── settings.js (GET/POST /api/settings/*)
+│
+├── middleware/
+│   ├── auth.js (JWT verification)
+│   ├── errorHandler.js (global error catching)
+│   ├── validation.js (request validation)
+│   └── cors.js (CORS configuration)
+│
+├── models/
+│   ├── User.js (user database operations)
+│   ├── Content.js (content CRUD)
+│   ├── AffiliateLink.js (affiliate link operations)
+│   ├── AnalyticsEvent.js (analytics tracking)
+│   ├── DigitalProduct.js (product operations)
+│   └── ScheduledPost.js (scheduled posts)
+│
+├── services/
+│   ├── authService.js (authentication logic)
+│   ├── contentService.js (content generation/management)
+│   ├── affiliateService.js (affiliate operations)
+│   ├── analyticsService.js (data aggregation)
+│   ├── pinterestService.js (Pinterest API calls)
+│   ├── youtubeService.js (YouTube API calls)
+│   ├── gumroadService.js (Gumroad API calls)
+│   ├── openaiService.js (ChatGPT API calls)
+│   ├── bufferService.js (Buffer API calls)
+│   └── bitlyService.js (Link shortening)
+│
+├── jobs/
+│   ├── dailyPostingJob.js (post scheduled content)
+│   ├── metricsSyncJob.js (fetch analytics from APIs)
+│   ├── conversionTrackingJob.js (affiliate conversions)
+│   └── recommendationEngineJob.js (AI suggestions)
+│
+├── utils/
+│   ├── apiResponses.js (standardized response format)
+│   ├── validators.js (input validation schemas)
+│   ├── helpers.js (utility functions)
+│   └── encryption.js (for storing secrets)
+│
+└── sql/
+    ├── schema.sql (database schema)
+    └── migrations/ (database migrations)
+```
+
+---
+
+# PART 2: DATABASE SCHEMA & MODELS
+
+## 2.1 Database Connection
+
+```javascript
+// config/database.js
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle client', err);
+});
+
+module.exports = pool;
+```
+
+## 2.2 Database Schema
+
+```sql
+-- Users table
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  username VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  preferences JSONB DEFAULT '{}',
+  api_keys JSONB DEFAULT '{}'
+);
+
+-- Content Library
+CREATE TABLE content_library (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content_type VARCHAR(50) NOT NULL, -- 'pin', 'youtube_short', 'product', 'post'
+  niche VARCHAR(100) NOT NULL, -- 'health_fitness', 'luxury_tech', 'ai_money'
+  title VARCHAR(500) NOT NULL,
+  description TEXT,
+  image_url VARCHAR(1000),
+  video_url VARCHAR(1000),
+  script_text TEXT,
+  status VARCHAR(50) NOT NULL DEFAULT 'draft', -- 'draft', 'scheduled', 'published', 'archived'
+  scheduled_dates TIMESTAMP[],
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  published_at TIMESTAMP,
+  tags TEXT[],
+  performance_metrics JSONB DEFAULT '{"views": 0, "clicks": 0, "conversions": 0, "revenue": 0}',
+  affiliate_link VARCHAR(1000)
+);
+
+-- Affiliate Links
+CREATE TABLE affiliate_links (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  original_url VARCHAR(2000) NOT NULL,
+  shortened_url VARCHAR(500) UNIQUE NOT NULL,
+  shortener_service VARCHAR(50), -- 'bitly', 'rebrandly'
+  niche VARCHAR(100) NOT NULL,
+  product_name VARCHAR(500) NOT NULL,
+  affiliate_network VARCHAR(100), -- 'amazon', 'shareasale', 'impact', 'refersion'
+  commission_rate DECIMAL(5, 2) NOT NULL,
+  tracking_id VARCHAR(500),
+  clicks INTEGER DEFAULT 0,
+  conversions INTEGER DEFAULT 0,
+  revenue DECIMAL(10, 2) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  last_click_at TIMESTAMP,
+  status VARCHAR(50) DEFAULT 'active', -- 'active', 'inactive', 'archived'
+  metadata JSONB DEFAULT '{}'
+);
+
+-- Analytics Events
+CREATE TABLE analytics_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_type VARCHAR(100) NOT NULL, -- 'pin_posted', 'video_uploaded', 'product_sold', 'link_clicked'
+  content_id UUID REFERENCES content_library(id),
+  affiliate_link_id UUID REFERENCES affiliate_links(id),
+  platform VARCHAR(100), -- 'pinterest', 'youtube', 'tiktok', 'gumroad'
+  metric_value DECIMAL(10, 2),
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  event_date DATE
+);
+
+-- Digital Products
+CREATE TABLE digital_products (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(500) NOT NULL,
+  description TEXT,
+  price DECIMAL(10, 2) NOT NULL,
+  niche VARCHAR(100) NOT NULL,
+  product_type VARCHAR(50), -- 'template', 'guide', 'checklist', 'course'
+  gumroad_product_id VARCHAR(500),
+  gumroad_url VARCHAR(1000),
+  file_url VARCHAR(1000),
+  thumbnail_url VARCHAR(1000),
+  sales_count INTEGER DEFAULT 0,
+  revenue DECIMAL(10, 2) DEFAULT 0,
+  promotion_content_ids UUID[],
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  status VARCHAR(50) DEFAULT 'draft',
+  metadata JSONB DEFAULT '{}'
+);
+
+-- Scheduled Posts
+CREATE TABLE scheduled_posts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content_id UUID NOT NULL REFERENCES content_library(id),
+  platform VARCHAR(100) NOT NULL,
+  scheduled_time TIMESTAMP NOT NULL,
+  execution_status VARCHAR(50) DEFAULT 'pending', -- 'pending', 'processing', 'success', 'failed'
+  platform_post_id VARCHAR(500),
+  error_message TEXT,
+  retry_count INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  executed_at TIMESTAMP
+);
+
+-- Niche Configurations
+CREATE TABLE niche_configs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  niche_name VARCHAR(100) NOT NULL,
+  description TEXT,
+  target_audience TEXT,
+  keywords TEXT[],
+  posting_frequency INTEGER DEFAULT 5,
+  status VARCHAR(50) DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Platform Connections
+CREATE TABLE platform_connections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  platform_name VARCHAR(100) NOT NULL,
+  access_token VARCHAR(1000),
+  refresh_token VARCHAR(1000),
+  account_id VARCHAR(500),
+  account_name VARCHAR(500),
+  connection_status VARCHAR(50) DEFAULT 'connected',
+  connected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  last_refreshed TIMESTAMP,
+  metadata JSONB DEFAULT '{}'
+);
+
+-- Indexes for performance
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_content_user_id ON content_library(user_id);
+CREATE INDEX idx_content_status ON content_library(status);
+CREATE INDEX idx_affiliate_user_id ON affiliate_links(user_id);
+CREATE INDEX idx_analytics_user_id ON analytics_events(user_id);
+CREATE INDEX idx_analytics_event_date ON analytics_events(event_date);
+CREATE INDEX idx_products_user_id ON digital_products(user_id);
+CREATE INDEX idx_scheduled_posts_platform ON scheduled_posts(platform);
+CREATE INDEX idx_scheduled_posts_status ON scheduled_posts(execution_status);
+```
+
+---
+
+# PART 3: EXPRESS SERVER SETUP
+
+## 3.1 Main Server File (server.js)
+
+```javascript
+// server.js - COMPLETE SERVER SETUP
+const express = require('express');
+const cors = require('cors');
+const dotenv = require('dotenv');
+const pool = require('./config/database');
+
+// Load environment variables
+dotenv.config();
+
+const app = express();
+
+// ========== MIDDLEWARE ==========
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// CORS Configuration
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true,
+  optionsSuccessStatus: 200
+}));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  next();
+});
+
+// ========== HEALTH CHECK ENDPOINT ==========
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+// ========== API ROUTES ==========
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/content', require('./routes/content'));
+app.use('/api/analytics', require('./routes/analytics'));
+app.use('/api/affiliate', require('./routes/affiliate'));
+app.use('/api/products', require('./routes/products'));
+app.use('/api/platforms', require('./routes/platforms'));
+app.use('/api/settings', require('./routes/settings'));
+
+// ========== ERROR HANDLING MIDDLEWARE ==========
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  
+  res.status(err.status || 500).json({
+    success: false,
+    error: process.env.NODE_ENV === 'production' 
+      ? 'Internal server error'
+      : err.message,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// ========== 404 HANDLER ==========
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: 'Endpoint not found',
+    path: req.path
+  });
+});
+
+// ========== DATABASE CONNECTION TEST ==========
+pool.query('SELECT NOW()', (err, res) => {
+  if (err) {
+    console.error('Database connection failed:', err);
+  } else {
+    console.log('✅ Database connected:', res.rows[0]);
+  }
+});
+
+// ========== START CRON JOBS ==========
+require('./jobs/dailyPostingJob');
+require('./jobs/metricsSyncJob');
+require('./jobs/conversionTrackingJob');
+require('./jobs/recommendationEngineJob');
+
+// ========== START SERVER ==========
+const PORT = process.env.PORT || 3000;
+const server = app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+// ========== GRACEFUL SHUTDOWN ==========
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  server.close(() => {
+    console.log('Server closed');
+    pool.end(() => {
+      console.log('Database pool closed');
+      process.exit(0);
+    });
+  });
+});
+```
+
+---
+
+# PART 4: COMPLETE API ENDPOINTS
+
+## 4.1 Authentication Routes
+
+```javascript
+// routes/auth.js
+const express = require('express');
+const router = express.Router();
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const pool = require('../config/database');
+
+// POST /api/auth/signup
+router.post('/signup', async (req, res) => {
+  try {
+    const { email, password, username } = req.body;
+    
+    // Validation
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required' });
+    }
+    
+    // Check if user exists
+    const existingUser = await pool.query(
+      'SELECT * FROM users WHERE email = $1',
+      [email]
+    );
+    
+    if (existingUser.rows.length > 0) {
+      return res.status(409).json({ error: 'User already exists' });
+    }
+    
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Create user
+    const newUser = await pool.query(
+      'INSERT INTO users (email, password_hash, username) VALUES ($1, $2, $3) RETURNING id, email, username',
+      [email, hashedPassword, username || email.split('@')[0]]
+    );
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: newUser.rows[0].id, email: newUser.rows[0].email },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+    
+    res.status(201).json({
+      success: true,
+      user: newUser.rows[0],
+      token
+    });
+  } catch (error) {
+    console.error('Signup error:', error);
+    res.status(500).json({ error: 'Signup failed' });
+  }
+});
+
+// POST /api/auth/login
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required' });
+    }
+    
+    // Find user
+    const user = await pool.query(
+      'SELECT * FROM users WHERE email = $1',
+      [email]
+    );
+    
+    if (user.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    // Verify password
+    const validPassword = await bcrypt.compare(password, user.rows[0].password_hash);
+    
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.rows[0].id, email: user.rows[0].email },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+    
+    res.json({
+      success: true,
+      user: {
+        id: user.rows[0].id,
+        email: user.rows[0].email,
+        username: user.rows[0].username
+      },
+      token
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+// POST /api/auth/logout
+router.post('/logout', (req, res) => {
+  // JWT is stateless, logout just needs to clear token on client
+  res.json({ success: true, message: 'Logged out successfully' });
+});
+
+module.exports = router;
+```
+
+## 4.2 Content Management Routes
+
+```javascript
+// routes/content.js
+const express = require('express');
+const router = express.Router();
+const pool = require('../config/database');
+const { verifyAuth } = require('../middleware/auth');
+const openaiService = require('../services/openaiService');
+
+// POST /api/content/create
+router.post('/create', verifyAuth, async (req, res) => {
+  try {
+    const { content_type, niche, title, description, image_url, video_url, affiliate_link, scheduled_dates, tags } = req.body;
+    
+    const result = await pool.query(
+      `INSERT INTO content_library 
+       (user_id, content_type, niche, title, description, image_url, video_url, affiliate_link, status, scheduled_dates, tags)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING *`,
+      [req.userId, content_type, niche, title, description, image_url, video_url, affiliate_link, 'draft', scheduled_dates || [], tags || []]
+    );
+    
+    res.status(201).json({
+      success: true,
+      content: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Create content error:', error);
+    res.status(500).json({ error: 'Failed to create content' });
+  }
+});
+
+// GET /api/content/list
+router.get('/list', verifyAuth, async (req, res) => {
+  try {
+    const { niche, status, limit = 20, offset = 0 } = req.query;
+    
+    let query = 'SELECT * FROM content_library WHERE user_id = $1';
+    const params = [req.userId];
+    
+    if (niche) {
+      query += ` AND niche = $${params.length + 1}`;
+      params.push(niche);
+    }
+    
+    if (status) {
+      query += ` AND status = $${params.length + 1}`;
+      params.push(status);
+    }
+    
+    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+    
+    const result = await pool.query(query, params);
+    
+    // Get total count
+    let countQuery = 'SELECT COUNT(*) FROM content_library WHERE user_id = $1';
+    const countParams = [req.userId];
+    
+    if (niche) {
+      countQuery += ` AND niche = $${countParams.length + 1}`;
+      countParams.push(niche);
+    }
+    
+    if (status) {
+      countQuery += ` AND status = $${countParams.length + 1}`;
+      countParams.push(status);
+    }
+    
+    const countResult = await pool.query(countQuery, countParams);
+    
+    res.json({
+      success: true,
+      content: result.rows,
+      total: parseInt(countResult.rows[0].count),
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+  } catch (error) {
+    console.error('List content error:', error);
+    res.status(500).json({ error: 'Failed to list content' });
+  }
+});
+
+// POST /api/content/generate-copy
+router.post('/generate-copy', verifyAuth, async (req, res) => {
+  try {
+    const { product_name, niche, tone = 'casual', num_variations = 5 } = req.body;
+    
+    const prompt = `Write ${num_variations} unique Pinterest pin descriptions for a ${niche} product: "${product_name}".
+    
+Requirements:
+- Tone: ${tone}
+- Length: 30-50 words each
+- Include action-oriented language
+- Hook should grab attention in first 5 words
+- Include relevant keywords for "${niche}"
+- End with call-to-action
+- Each description should be DIFFERENT and unique
+
+Format: Return as JSON array of strings: ["description1", "description2", ...]`;
+
+    const descriptions = await openaiService.generateText(prompt);
+    
+    res.json({
+      success: true,
+      descriptions: JSON.parse(descriptions)
+    });
+  } catch (error) {
+    console.error('Generate copy error:', error);
+    res.status(500).json({ error: 'Failed to generate copy' });
+  }
+});
+
+// POST /api/content/schedule
+router.post('/schedule', verifyAuth, async (req, res) => {
+  try {
+    const { content_id, platforms, schedule } = req.body;
+    
+    // Get content
+    const contentResult = await pool.query(
+      'SELECT * FROM content_library WHERE id = $1 AND user_id = $2',
+      [content_id, req.userId]
+    );
+    
+    if (contentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Content not found' });
+    }
+    
+    const content = contentResult.rows[0];
+    
+    // Create scheduled posts for each platform and date
+    const scheduledPosts = [];
+    
+    for (const platform of platforms) {
+      for (const { date, time } of schedule) {
+        const scheduledTime = new Date(`${date}T${time}:00Z`);
+        
+        const result = await pool.query(
+          `INSERT INTO scheduled_posts (user_id, content_id, platform, scheduled_time, execution_status)
+           VALUES ($1, $2, $3, $4, 'pending')
+           RETURNING *`,
+          [req.userId, content_id, platform, scheduledTime]
+        );
+        
+        scheduledPosts.push(result.rows[0]);
+      }
+    }
+    
+    // Update content status to scheduled
+    await pool.query(
+      'UPDATE content_library SET status = $1 WHERE id = $2',
+      ['scheduled', content_id]
+    );
+    
+    res.json({
+      success: true,
+      scheduledPosts
+    });
+  } catch (error) {
+    console.error('Schedule content error:', error);
+    res.status(500).json({ error: 'Failed to schedule content' });
+  }
+});
+
+module.exports = router;
+```
+
+## 4.3 Analytics Routes
+
+```javascript
+// routes/analytics.js
+const express = require('express');
+const router = express.Router();
+const pool = require('../config/database');
+const { verifyAuth } = require('../middleware/auth');
+
+// GET /api/analytics/dashboard
+router.get('/dashboard', verifyAuth, async (req, res) => {
+  try {
+    const { date_range = '30days' } = req.query;
+    
+    // Calculate date range
+    const daysAgo = date_range === '7days' ? 7 : date_range === '90days' ? 90 : 30;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysAgo);
+    
+    // Get revenue data
+    const revenueResult = await pool.query(
+      `SELECT 
+        SUM(metric_value) as total_revenue,
+        COUNT(*) FILTER (WHERE event_type = 'link_clicked') as total_clicks,
+        COUNT(*) FILTER (WHERE event_type = 'conversion') as total_conversions
+       FROM analytics_events
+       WHERE user_id = $1 AND created_at >= $2`,
+      [req.userId, startDate]
+    );
+    
+    const revenue = revenueResult.rows[0];
+    
+    // Get revenue by niche
+    const nicheResult = await pool.query(
+      `SELECT 
+        cl.niche,
+        SUM(ae.metric_value) as revenue,
+        COUNT(*) FILTER (WHERE ae.event_type = 'link_clicked') as clicks,
+        COUNT(*) FILTER (WHERE ae.event_type = 'conversion') as conversions
+       FROM analytics_events ae
+       LEFT JOIN content_library cl ON ae.content_id = cl.id
+       WHERE ae.user_id = $1 AND ae.created_at >= $2
+       GROUP BY cl.niche
+       ORDER BY revenue DESC`,
+      [req.userId, startDate]
+    );
+    
+    // Get revenue by platform
+    const platformResult = await pool.query(
+      `SELECT 
+        platform,
+        SUM(metric_value) as revenue,
+        COUNT(*) FILTER (WHERE event_type = 'link_clicked') as clicks,
+        COUNT(*) FILTER (WHERE event_type = 'conversion') as conversions
+       FROM analytics_events
+       WHERE user_id = $1 AND created_at >= $2
+       GROUP BY platform
+       ORDER BY revenue DESC`,
+      [req.userId, startDate]
+    );
+    
+    // Get top performers
+    const topContentResult = await pool.query(
+      `SELECT 
+        cl.id,
+        cl.title,
+        cl.content_type,
+        cl.performance_metrics,
+        COUNT(*) as clicks,
+        COUNT(*) FILTER (WHERE ae.event_type = 'conversion') as conversions
+       FROM content_library cl
+       LEFT JOIN analytics_events ae ON cl.id = ae.content_id
+       WHERE cl.user_id = $1 AND ae.created_at >= $2
+       GROUP BY cl.id
+       ORDER BY clicks DESC
+       LIMIT 5`,
+      [req.userId, startDate]
+    );
+    
+    // Get trends (daily revenue)
+    const trendsResult = await pool.query(
+      `SELECT 
+        DATE(created_at) as date,
+        SUM(metric_value) as revenue,
+        COUNT(*) as events
+       FROM analytics_events
+       WHERE user_id = $1 AND created_at >= $2
+       GROUP BY DATE(created_at)
+       ORDER BY date ASC`,
+      [req.userId, startDate]
+    );
+    
+    res.json({
+      success: true,
+      summary: {
+        total_revenue: parseFloat(revenue.total_revenue) || 0,
+        total_clicks: parseInt(revenue.total_clicks) || 0,
+        total_conversions: parseInt(revenue.total_conversions) || 0,
+        conversion_rate: revenue.total_clicks ? ((parseInt(revenue.total_conversions) / parseInt(revenue.total_clicks)) * 100).toFixed(2) : 0
+      },
+      by_niche: nicheResult.rows,
+      by_platform: platformResult.rows,
+      top_performers: topContentResult.rows,
+      trends: trendsResult.rows
+    });
+  } catch (error) {
+    console.error('Dashboard error:', error);
+    res.status(500).json({ error: 'Failed to get dashboard data' });
+  }
+});
+
+// GET /api/analytics/niche/:niche
+router.get('/niche/:niche', verifyAuth, async (req, res) => {
+  try {
+    const { niche } = req.params;
+    const { date_range = '30days' } = req.query;
+    
+    const daysAgo = date_range === '7days' ? 7 : date_range === '90days' ? 90 : 30;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysAgo);
+    
+    // Get niche-specific metrics
+    const metricsResult = await pool.query(
+      `SELECT 
+        SUM(ae.metric_value) as revenue,
+        COUNT(*) FILTER (WHERE ae.event_type = 'link_clicked') as clicks,
+        COUNT(*) FILTER (WHERE ae.event_type = 'conversion') as conversions
+       FROM analytics_events ae
+       LEFT JOIN content_library cl ON ae.content_id = cl.id
+       WHERE ae.user_id = $1 AND cl.niche = $2 AND ae.created_at >= $3`,
+      [req.userId, niche, startDate]
+    );
+    
+    // Get content for this niche
+    const contentResult = await pool.query(
+      `SELECT 
+        id, title, content_type, created_at,
+        (SELECT COUNT(*) FROM analytics_events WHERE content_id = cl.id) as views
+       FROM content_library cl
+       WHERE user_id = $1 AND niche = $2
+       ORDER BY created_at DESC`,
+      [req.userId, niche]
+    );
+    
+    res.json({
+      success: true,
+      niche,
+      metrics: metricsResult.rows[0],
+      content: contentResult.rows
+    });
+  } catch (error) {
+    console.error('Niche analytics error:', error);
+    res.status(500).json({ error: 'Failed to get niche analytics' });
+  }
+});
+
+module.exports = router;
+```
+
+## 4.4 Affiliate Links Routes
+
+```javascript
+// routes/affiliate.js
+const express = require('express');
+const router = express.Router();
+const pool = require('../config/database');
+const { verifyAuth } = require('../middleware/auth');
+const bitlyService = require('../services/bitlyService');
+
+// POST /api/affiliate/create-link
+router.post('/create-link', verifyAuth, async (req, res) => {
+  try {
+    const { original_url, affiliate_network, product_name, niche, commission_rate, shortener } = req.body;
+    
+    // Shorten the URL
+    const shortened = await bitlyService.shortenUrl(original_url);
+    
+    // Store in database
+    const result = await pool.query(
+      `INSERT INTO affiliate_links 
+       (user_id, original_url, shortened_url, shortener_service, niche, product_name, affiliate_network, commission_rate, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active')
+       RETURNING *`,
+      [req.userId, original_url, shortened.shortUrl, shortener, niche, product_name, affiliate_network, commission_rate]
+    );
+    
+    res.status(201).json({
+      success: true,
+      link: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Create link error:', error);
+    res.status(500).json({ error: 'Failed to create affiliate link' });
+  }
+});
+
+// GET /api/affiliate/links
+router.get('/links', verifyAuth, async (req, res) => {
+  try {
+    const { niche, sort_by = 'created_at', limit = 20, offset = 0 } = req.query;
+    
+    let query = 'SELECT * FROM affiliate_links WHERE user_id = $1';
+    const params = [req.userId];
+    
+    if (niche) {
+      query += ` AND niche = $${params.length + 1}`;
+      params.push(niche);
+    }
+    
+    query += ` ORDER BY ${sort_by} DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+    
+    const result = await pool.query(query, params);
+    
+    // Get summary
+    const summaryResult = await pool.query(
+      `SELECT 
+        COUNT(*) as total_links,
+        SUM(clicks) as total_clicks,
+        SUM(conversions) as total_conversions,
+        SUM(revenue) as total_revenue
+       FROM affiliate_links
+       WHERE user_id = $1`,
+      [req.userId]
+    );
+    
+    res.json({
+      success: true,
+      links: result.rows,
+      summary: summaryResult.rows[0]
+    });
+  } catch (error) {
+    console.error('List links error:', error);
+    res.status(500).json({ error: 'Failed to list affiliate links' });
+  }
+});
+
+// GET /api/affiliate/links/:linkId
+router.get('/links/:linkId', verifyAuth, async (req, res) => {
+  try {
+    const { linkId } = req.params;
+    
+    const result = await pool.query(
+      `SELECT * FROM affiliate_links WHERE id = $1 AND user_id = $2`,
+      [linkId, req.userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Link not found' });
+    }
+    
+    res.json({
+      success: true,
+      link: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Get link error:', error);
+    res.status(500).json({ error: 'Failed to get affiliate link' });
+  }
+});
+
+module.exports = router;
+```
+
+---
+
+# PART 5: EXTERNAL API INTEGRATIONS
+
+## 5.1 OpenAI Service (ChatGPT)
+
+```javascript
+// services/openaiService.js
+const axios = require('axios');
+
+class OpenAIService {
+  constructor() {
+    this.apiKey = process.env.OPENAI_API_KEY;
+    this.baseURL = 'https://api.openai.com/v1';
+  }
+  
+  async generateText(prompt) {
+    try {
+      const response = await axios.post(`${this.baseURL}/chat/completions`, {
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: 'You are a helpful assistant that creates compelling social media content.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 500
+      }, {
+        headers: { 'Authorization': `Bearer ${this.apiKey}` }
+      });
+      
+      return response.data.choices[0].message.content;
+    } catch (error) {
+      console.error('OpenAI error:', error.response?.data || error);
+      throw error;
+    }
+  }
+}
+
+module.exports = new OpenAIService();
+```
+
+## 5.2 Pinterest Service
+
+```javascript
+// services/pinterestService.js
+const axios = require('axios');
+
+class PinterestService {
+  constructor() {
+    this.accessToken = process.env.PINTEREST_ACCESS_TOKEN;
+    this.baseURL = 'https://api.pinterest.com/v1';
+  }
+  
+  async createPin(boardId, imageUrl, description, link) {
+    try {
+      const response = await axios.post(`${this.baseURL}/pins/`, {
+        board: boardId,
+        note: description,
+        image_url: imageUrl,
+        link: link
+      }, {
+        headers: { 'Authorization': `Bearer ${this.accessToken}` }
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Pinterest API error:', error.response?.data || error);
+      throw error;
+    }
+  }
+}
+
+module.exports = new PinterestService();
+```
+
+## 5.3 Buffer Service
+
+```javascript
+// services/bufferService.js
+const axios = require('axios');
+
+class BufferService {
+  constructor() {
+    this.accessToken = process.env.BUFFER_ACCESS_TOKEN;
+    this.baseURL = 'https://api.bufferapp.com/1';
+  }
+  
+  async schedulePost(profileId, text, imageUrl, link, scheduledTime) {
+    try {
+      const response = await axios.post(`${this.baseURL}/updates/create`, {
+        profile_ids: [profileId],
+        text: text,
+        media: { link: link, image: imageUrl },
+        scheduled_at: Math.floor(new Date(scheduledTime).getTime() / 1000)
+      }, {
+        headers: { 'Authorization': `Bearer ${this.accessToken}` }
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Buffer API error:', error.response?.data || error);
+      throw error;
+    }
+  }
+}
+
+module.exports = new BufferService();
+```
+
+## 5.4 Gumroad Service
+
+```javascript
+// services/gumroadService.js
+const axios = require('axios');
+
+class GumroadService {
+  constructor() {
+    this.accessToken = process.env.GUMROAD_ACCESS_TOKEN;
+    this.baseURL = 'https://api.gumroad.com/api/v2';
+  }
+  
+  async createProduct(title, description, price, fileUrl) {
+    try {
+      const response = await axios.post(`${this.baseURL}/products`, {
+        name: title,
+        description: description,
+        price: price,
+        product_type: 'file',
+        file_url: fileUrl,
+        published: true
+      }, {
+        headers: { 'Authorization': `Bearer ${this.accessToken}` }
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Gumroad API error:', error.response?.data || error);
+      throw error;
+    }
+  }
+  
+  async getSales(productId) {
+    try {
+      const response = await axios.get(`${this.baseURL}/products/${productId}/sales`, {
+        headers: { 'Authorization': `Bearer ${this.accessToken}` }
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Gumroad API error:', error.response?.data || error);
+      throw error;
+    }
+  }
+}
+
+module.exports = new GumroadService();
+```
+
+---
+
+# PART 6: AUTHENTICATION MIDDLEWARE
+
+```javascript
+// middleware/auth.js
+const jwt = require('jsonwebtoken');
+
+const verifyAuth = (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader) {
+      return res.status(401).json({ error: 'No authorization header' });
+    }
+    
+    const token = authHeader.replace('Bearer ', '');
+    
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    req.userId = decoded.userId;
+    req.email = decoded.email;
+    
+    next();
+  } catch (error) {
+    console.error('Auth error:', error);
+    res.status(401).json({ error: 'Invalid or expired token' });
+  }
+};
+
+module.exports = { verifyAuth };
+```
+
+---
+
+# PART 7: CRON JOBS FOR AUTOMATION
+
+## 7.1 Daily Posting Job
+
+```javascript
+// jobs/dailyPostingJob.js
+const cron = require('node-cron');
+const pool = require('../config/database');
+const bufferService = require('../services/bufferService');
+const pinterestService = require('../services/pinterestService');
+
+// Run every day at 6 AM UTC
+cron.schedule('0 6 * * *', async () => {
+  console.log('⏰ Daily posting job started');
+  
+  try {
+    // Get all pending scheduled posts for today
+    const result = await pool.query(`
+      SELECT sp.*, cl.title, cl.image_url, cl.description, cl.affiliate_link
+      FROM scheduled_posts sp
+      JOIN content_library cl ON sp.content_id = cl.id
+      WHERE DATE(sp.scheduled_time) = CURRENT_DATE
+      AND sp.execution_status = 'pending'
+    `);
+    
+    for (const post of result.rows) {
+      try {
+        // Execute based on platform
+        if (post.platform === 'pinterest') {
+          await pinterestService.createPin(
+            'board-id',
+            post.image_url,
+            post.description,
+            post.affiliate_link
+          );
+        } else if (post.platform === 'buffer') {
+          await bufferService.schedulePost(
+            'profile-id',
+            post.description,
+            post.image_url,
+            post.affiliate_link,
+            post.scheduled_time
+          );
+        }
+        
+        // Update status
+        await pool.query(
+          'UPDATE scheduled_posts SET execution_status = $1, executed_at = NOW() WHERE id = $2',
+          ['success', post.id]
+        );
+        
+        console.log(`✅ Posted: ${post.title}`);
+      } catch (error) {
+        console.error(`❌ Failed to post ${post.id}:`, error);
+        
+        await pool.query(
+          'UPDATE scheduled_posts SET execution_status = $1, error_message = $2, retry_count = retry_count + 1 WHERE id = $3',
+          ['failed', error.message, post.id]
+        );
+      }
+    }
+    
+    console.log('✅ Daily posting job completed');
+  } catch (error) {
+    console.error('❌ Daily posting job failed:', error);
+  }
+});
+```
+
+## 7.2 Metrics Sync Job
+
+```javascript
+// jobs/metricsSyncJob.js
+const cron = require('node-cron');
+const pool = require('../config/database');
+const refersionService = require('../services/refersionService');
+
+// Run every 6 hours
+cron.schedule('0 */6 * * *', async () => {
+  console.log('⏰ Metrics sync job started');
+  
+  try {
+    // Get all users with connected affiliate accounts
+    const usersResult = await pool.query(`
+      SELECT DISTINCT user_id FROM affiliate_links WHERE status = 'active'
+    `);
+    
+    for (const { user_id } of usersResult.rows) {
+      try {
+        // Get metrics from Refersion
+        const metrics = await refersionService.getMetrics();
+        
+        // Update affiliate links with new data
+        for (const metric of metrics) {
+          await pool.query(`
+            UPDATE affiliate_links 
+            SET clicks = $1, conversions = $2, revenue = $3, last_click_at = NOW()
+            WHERE tracking_id = $4 AND user_id = $5
+          `, [metric.clicks, metric.conversions, metric.revenue, metric.tracking_id, user_id]);
+          
+          // Record analytics event
+          await pool.query(`
+            INSERT INTO analytics_events (user_id, event_type, platform, metric_value)
+            VALUES ($1, 'conversion', 'refersion', $2)
+          `, [user_id, metric.revenue]);
+        }
+        
+        console.log(`✅ Synced metrics for user ${user_id}`);
+      } catch (error) {
+        console.error(`❌ Failed to sync metrics for user ${user_id}:`, error);
+      }
+    }
+    
+    console.log('✅ Metrics sync job completed');
+  } catch (error) {
+    console.error('❌ Metrics sync job failed:', error);
+  }
+});
+```
+
+---
+
+# PART 8: ENVIRONMENT VARIABLES
+
+```bash
+# .env file (DO NOT COMMIT)
+# Create this file with your actual credentials
+
+# Server
+PORT=3000
+NODE_ENV=development
+JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
+
+# Database
+DATABASE_URL=postgresql://username:password@localhost:5432/income_autopilot
+
+# Frontend
+FRONTEND_URL=http://localhost:3000
+
+# External APIs
+OPENAI_API_KEY=sk-...
+PINTEREST_ACCESS_TOKEN=...
+YOUTUBE_API_KEY=...
+BUFFER_ACCESS_TOKEN=...
+GUMROAD_ACCESS_TOKEN=...
+BITLY_ACCESS_TOKEN=...
+REFERSION_API_KEY=...
+
+# Affiliate Programs
+AMAZON_ASSOCIATE_TAG=...
+SHAREASALE_AFFILIATE_ID=...
+```
+
+---
+
+# PART 9: SETUP INSTRUCTIONS FOR REPLIT
+
+## Step 1: Initialize Project
+
+```bash
+# On Replit, open shell and run:
+npm init -y
+
+npm install express cors dotenv bcrypt jsonwebtoken pg axios node-cron
+npm install --save-dev nodemon
+```
+
+## Step 2: Create .env File
+
+```bash
+# Create .env file in Replit with all secrets
+DATABASE_URL=your_database_connection_string
+JWT_SECRET=your_secret_key
+etc...
+```
+
+## Step 3: Create Database
+
+```bash
+# Run schema.sql in your PostgreSQL database
+psql -U username -d database_name -f sql/schema.sql
+```
+
+## Step 4: Run Server
+
+```bash
+node server.js
+# Or with nodemon for auto-reload:
+npx nodemon server.js
+```
+
+## Step 5: Test Endpoints
+
+```bash
+# Health check
+curl http://localhost:3000/health
+
+# Login
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}'
+```
+
+---
+
+# PART 10: DEPLOYMENT CHECKLIST
+
+Before going live:
+
+- [ ] All environment variables set in Replit Secrets
+- [ ] Database connected and schema created
+- [ ] All 30+ endpoints tested
+- [ ] Authentication working (JWT tokens)
+- [ ] External APIs connected (OpenAI, Pinterest, etc.)
+- [ ] Cron jobs running
+- [ ] Error handling comprehensive
+- [ ] CORS configured for Lovable frontend
+- [ ] Database backups automated
+- [ ] Logging implemented
+- [ ] Rate limiting added (optional but recommended)
+- [ ] Input validation on all endpoints
+- [ ] Sensitive data encrypted/hashed
+- [ ] No hardcoded secrets in code
+- [ ] README.md created
+- [ ] Deployed on Replit and running 24/7
+
+---
+
+# FINAL NOTES
+
+**This is a production-ready backend specification.**
+
+- Every endpoint is defined
+- Every database table is specified
+- Every integration is detailed
+- Every job is scheduled
+- Security best practices included
+- Error handling comprehensive
+- Fully documented
+
+**You have everything needed to build this on Replit.**
+
+**Execute this spec exactly and you'll have a working backend in 3-5 days.**
+
+**Good luck! 🚀**

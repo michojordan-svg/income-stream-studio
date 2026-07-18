@@ -1,8 +1,9 @@
 import { auth } from "./auth";
 
-// During development the backend runs on port 3001 alongside Vite on 5000.
-// In production point VITE_API_URL at the deployed backend URL.
-const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
+// All /api calls are proxied through Vite to localhost:3001 in dev,
+// and should be served from the same origin in production.
+// Set VITE_API_URL only if your backend lives on a separate domain.
+const BASE = import.meta.env.VITE_API_URL ?? "";
 
 class ApiError extends Error {
   constructor(

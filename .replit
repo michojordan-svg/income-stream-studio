@@ -54,6 +54,10 @@ localPort = 5000
 externalPort = 5000
 
 [[ports]]
+localPort = 5001
+externalPort = 3000
+
+[[ports]]
 localPort = 8080
 externalPort = 80
 
@@ -62,3 +66,9 @@ externalPort = 80
 [userenv.shared]
 JWT_SECRET = "7c8ef103dc283f75a20e2f592c6a93dc9e9076d6ce01c99f3f3739018feda29aab743ef4e99d1b8204e18c115713b835"
 NODE_ENV = "development"
+BITLY_ACCESS_TOKEN = "placeholder-bitly-token-replace-before-launch"
+BUFFER_ACCESS_TOKEN = "placeholder-buffer-token-replace-before-launch"
+GUMROAD_ACCESS_TOKEN = "placeholder-gumroad-token-replace-before-launch"
+OPENAI_API_KEY = "sk-placeholder-openai-key-replace-before-launch"
+PINTEREST_ACCESS_TOKEN = "placeholder-pinterest-token-replace-before-launch"
+YOUTUBE_API_KEY = "placeholder-youtube-key-replace-before-launch"
